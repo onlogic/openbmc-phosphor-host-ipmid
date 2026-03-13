@@ -1584,15 +1584,14 @@ using namespace sdbusplus::server::xyz::openbmc_project::control::boot;
 using IpmiValue = uint8_t;
 constexpr auto ipmiDefault = 0;
 
-std::map<IpmiValue, Type::Types> typeIpmiToDbus = {{0x00, Type::Types::Legacy},
-                                                   {0x01, Type::Types::EFI}};
+std::map<IpmiValue, Type::Types> typeIpmiToDbus = {{0x01, Type::Types::EFI}};
 
 std::map<IpmiValue, Source::Sources> sourceIpmiToDbus = {
-    {0x01, Source::Sources::Network},
+    {ipmiDefault, Source::Sources::Default},
     {0x02, Source::Sources::Disk},
-    {0x05, Source::Sources::ExternalMedia},
     {0x0f, Source::Sources::RemovableMedia},
-    {ipmiDefault, Source::Sources::Default}};
+    {0x07, Source::Sources::VirtualMedia},
+    {0x01, Source::Sources::Network}};
 
 std::map<IpmiValue, Mode::Modes> modeIpmiToDbus = {
 #ifdef ENABLE_BOOT_FLAG_SAFE_MODE_SUPPORT
@@ -1601,15 +1600,14 @@ std::map<IpmiValue, Mode::Modes> modeIpmiToDbus = {
     {0x06, Mode::Modes::Setup},
     {ipmiDefault, Mode::Modes::Regular}};
 
-std::map<Type::Types, IpmiValue> typeDbusToIpmi = {{Type::Types::Legacy, 0x00},
-                                                   {Type::Types::EFI, 0x01}};
+std::map<Type::Types, IpmiValue> typeDbusToIpmi = {{Type::Types::EFI, 0x01}};
 
 std::map<Source::Sources, IpmiValue> sourceDbusToIpmi = {
-    {Source::Sources::Network, 0x01},
+    {Source::Sources::Default, ipmiDefault},
     {Source::Sources::Disk, 0x02},
-    {Source::Sources::ExternalMedia, 0x05},
     {Source::Sources::RemovableMedia, 0x0f},
-    {Source::Sources::Default, ipmiDefault}};
+    {Source::Sources::VirtualMedia, 0x07},
+    {Source::Sources::Network, 0x01}};
 
 std::map<Mode::Modes, IpmiValue> modeDbusToIpmi = {
 #ifdef ENABLE_BOOT_FLAG_SAFE_MODE_SUPPORT
@@ -1972,13 +1970,6 @@ ipmi::RspType<ipmi::message::Payload> ipmiChassisGetSysBootOptions(
                 return ipmi::response(rc);
             }
 
-            Type::Types bootType;
-            rc = getBootType(ctx, bootType);
-            if (rc != ipmi::ccSuccess)
-            {
-                return ipmi::response(rc);
-            }
-
             Mode::Modes bootMode;
             rc = getBootMode(ctx, bootMode);
             if (rc != ipmi::ccSuccess)
@@ -1997,7 +1988,7 @@ ipmi::RspType<ipmi::message::Payload> ipmiChassisGetSysBootOptions(
                 bootOption = modeDbusToIpmi.at(bootMode);
             }
 
-            IpmiValue biosBootType = typeDbusToIpmi.at(bootType);
+            IpmiValue biosBootType = typeDbusToIpmi.at(Type::Types::EFI); // default to EFI, as this is the only type we support
 
             bool oneTimeEnabled;
             rc = getBootOneTime(ctx, oneTimeEnabled);
@@ -2158,8 +2149,7 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
 
             auto modeItr =
                 modeIpmiToDbus.find(static_cast<uint8_t>(bootDeviceSelector));
-            auto typeItr =
-                typeIpmiToDbus.find(static_cast<uint8_t>(biosBootType));
+            auto typeItr = typeIpmiToDbus.find(static_cast<uint8_t>(0x01)); // since we only support EFI, the boot type is always 0x01
             auto sourceItr =
                 sourceIpmiToDbus.find(static_cast<uint8_t>(bootDeviceSelector));
             if (sourceIpmiToDbus.end() != sourceItr)
